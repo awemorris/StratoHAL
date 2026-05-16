@@ -687,7 +687,7 @@ jobs:
             | Wasm           | strato-wasm.tar.gz               | Tarball          | Emscripten                             |
             | OpenHarmony    | strato-openharmony.tar.gz        | Tarball          | OpenHarmony (HarmonyOS NEXT)           |
             | MS-DOS PC-9801 | strato-dos-pc98.lzh              | LHA              | OpenWatcom, DOS4GW, GDC 640x400 4-bpp  |
-            | MS-DOS PC/AT   | strato-dos-pcat.zip              | ZIP              | OpenWatcom, DOS4GW, VBE 640x480 24-bpp |
+            | MS-DOS PC/AT   | strato-dos-pcat.zip              | ZIP              | OpenWatcom, DOS4GW, VGA 640x480 4-bpp  |
 
           files: |
             windows/StratoHAL.1.0.0.nupkg
