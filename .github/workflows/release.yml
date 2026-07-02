@@ -668,6 +668,8 @@ jobs:
         with:
           tag_name: nightly-${{ env.DATE }}-${{ env.SHORT_SHA }}
           name: StratoHAL-${{ env.DATE }}-${{ env.SHORT_SHA }}
+          prerelease: true
+
           body: |
             StratoHAL 🌍🚀
             ==============
