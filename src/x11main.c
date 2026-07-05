@@ -215,8 +215,8 @@ static struct API api[] =
 
 /* argc/argv */
 #if defined(HAL_USE_X11_ONLY)
-int hal_argc;
-char **hal_argv;
+HAL_DLL int hal_argc;
+HAL_DLL char **hal_argv;
 #endif
 
 /* forward declaration */
