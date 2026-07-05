@@ -998,7 +998,6 @@ hal_notify_image_free(
 /*
  * Write an image to a file.
  */
-HAL_DLL
 bool
 hal_write_image(
 	struct hal_image *image,

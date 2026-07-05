@@ -141,8 +141,8 @@ HAL_DLL bool (*hal_bootstrap_ptr)(char **title, int *width, int *height, struct 
 
 #if defined(HAL_USE_WAYLAND_ONLY)
 /* argc/argv */
-HAL_DLL int hal_argc;
-HAL_DLL char **hal_argv;
+int hal_argc;
+char **hal_argv;
 #endif
 
 /* forward declaration */

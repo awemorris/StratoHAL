@@ -41,7 +41,17 @@
 #include <sys/types.h>
 #endif
 
-#if BYTE_ORDER==LITTLE_ENDIAN
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define BIG_ENDIAN
+#undef  LITTLE_ENDIAN
+#endif
+
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define LITTLE_ENDIAN
+#undef  BIG_ENDIAN
+#endif
+
+#if defined(LITTLE_ENDIAN)
 union magic {
   struct {
     ogg_int32_t lo;
@@ -51,7 +61,7 @@ union magic {
 };
 #endif 
 
-#if BYTE_ORDER==BIG_ENDIAN
+#if defined(BIG_ENDIAN)
 union magic {
   struct {
     ogg_int32_t hi;
