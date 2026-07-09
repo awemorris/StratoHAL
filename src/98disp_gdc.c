@@ -30,6 +30,8 @@
 
 /* HAL */
 #include <strato/strato.h>	/* Public Interface */
+
+void hal_poll_sound(void);
 #include "stdfile.h"		/* Standard C File Implementation */
 
 /* Standard C */
@@ -149,6 +151,10 @@ gdc_flip(void)
 	for (y = 0; y < SCREEN_HEIGHT; y++) {
 		if (y >= game_height)
 			break;
+
+		/* Let the sound buffer be refilled while we convert the screen. */
+		if ((y & 31) == 0)
+			hal_poll_sound();
 
 		for (x = 0; x < LINE_BYTES; x++) {
 			unsigned char pb = 0;
