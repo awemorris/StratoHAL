@@ -69,7 +69,11 @@ HAL_DLL bool (*hal_bootstrap_ptr)(char **title, int *width, int *height, struct 
 int hal_argc;
 char **hal_argv;
 
+/* Alpha blend table. */
+uint8_t alphatable[256][256];
+
 /* Forward Declaration */
+static void init_alphatable(void);
 static bool init_disp(void);
 static void cleanup_disp(void);
 static bool init_sound(void);
@@ -131,6 +135,8 @@ int hal_main(int argc, char *argv[])
 		return 1;
 	}
 
+	init_alphatable();
+
 	while (1) {
 		sound_poll();
 		process_input();
@@ -149,6 +155,18 @@ int hal_main(int argc, char *argv[])
 	cleanup_disp();
 
 	return 0;
+}
+
+static void
+init_alphatable(void)
+{
+	int a, b;
+
+	for (a = 0; a < 256; a++) {
+		for (b = 0; b < 256; b++) {
+			alphatable[a][b] = (uint8_t)(int)(((float)a / 255.0f) * ((float)b / 255.0f) * 255.0f);
+		}
+	}
 }
 
 /*

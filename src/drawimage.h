@@ -32,14 +32,6 @@
 #include <strato/strato.h>
 #include <assert.h>
 
-/* Let the sound buffer be refilled while we composite the screen in software. */
-#if defined(HAL_TARGET_PC98)
-void hal_poll_sound(void);
-#define HAL_ROW_POLL(y)   do { if (((y) & 31) == 0) hal_poll_sound(); } while (0)
-#else
-#define HAL_ROW_POLL(y)   do { } while (0)
-#endif
-
 /*
  * Do not use hal_get_pixel_r/g/b() and hal_make_pixel() here.
  *
@@ -58,6 +50,7 @@ extern bool is_sse4_available;
 extern bool is_sse3_available;
 extern bool is_sse2_available;
 extern bool is_sse_available;
+extern uint8_t alphatable[256][256];
 
 bool check_draw_image(struct hal_image *dst_image, int *dst_left, int *dst_top,
                       struct hal_image *src_image, int *width, int *height,
@@ -95,7 +88,6 @@ DRAW_IMAGE_COPY(
         dst_ptr = dst_image->pixels + dw * dst_top + dst_left;
 
         for(y = 0; y < height; y++) {
-                HAL_ROW_POLL(y);
                 for(x = 0; x < width; x++)
                         *(dst_ptr + x) = *(src_ptr + x);
                 src_ptr += sw;
@@ -117,6 +109,66 @@ DRAW_IMAGE_ALPHA(
         int src_top,
         int alpha)
 {
+#if defined(HAL_TARGET_PC98) || defined(HAL_TARGET_PCAT)
+        hal_pixel_t * RESTRICT src_ptr;
+        hal_pixel_t * RESTRICT dst_ptr;
+        uint8_t src_r, src_g, src_b, src_a, dst_r, dst_g, dst_b, dst_a;
+        uint32_t src_pix, dst_pix;
+        int src_line_inc, dst_line_inc, x, y, sw, dw;
+
+        if (!check_draw_image(dst_image, &dst_left, &dst_top, src_image, &width, &height, &src_left, &src_top, alpha))
+                return;
+
+        sw = src_image->width;
+        dw = dst_image->width;
+        src_ptr = src_image->pixels + sw * src_top + src_left;
+        dst_ptr = dst_image->pixels + dw * dst_top + dst_left;
+        src_line_inc = sw - width;
+        dst_line_inc = dw - width;
+
+        for(y = 0; y < height; y++) {
+                for(x = 0; x < width; x++) {
+                        /* Get the source and destination pixel values. */
+                        src_pix = *src_ptr++;
+                        dst_pix = *dst_ptr;
+
+                        /* Calc alpha values. */
+                        src_a = hal_get_pixel_a(src_pix);
+			if (src_a == 0) {
+				dst_ptr++;
+				continue;
+			}
+			if (src_a == 255) {
+				*dst_ptr++ = hal_make_pixel_fast(255,
+								 (uint32_t)hal_get_pixel_c1(src_pix),
+								 (uint32_t)hal_get_pixel_c2(src_pix),
+								 (uint32_t)hal_get_pixel_c3(src_pix));
+				continue;
+			}
+                        dst_a = 255 - src_a;
+
+                        /* Multiply the alpha value and the source pixel value. */
+                        src_r = alphatable[src_a][(uint8_t)hal_get_pixel_c1(src_pix)];
+                        src_g = alphatable[src_a][(uint8_t)hal_get_pixel_c2(src_pix)];
+                        src_b = alphatable[src_a][(uint8_t)hal_get_pixel_c3(src_pix)];
+
+                        /* Multiply the alpha value and the destination pixel value. */
+                        dst_r = alphatable[dst_a][(uint8_t)hal_get_pixel_c1(dst_pix)];
+                        dst_g = alphatable[dst_a][(uint8_t)hal_get_pixel_c2(dst_pix)];
+                        dst_b = alphatable[dst_a][(uint8_t)hal_get_pixel_c3(dst_pix)];
+
+                        /* Store to the destination. */
+                        *dst_ptr++ = hal_make_pixel_fast(255,
+                                                         (uint32_t)(src_r + dst_r),
+                                                         (uint32_t)(src_g + dst_g),
+                                                         (uint32_t)(src_b + dst_b));
+                }
+                src_ptr += src_line_inc;
+                dst_ptr += dst_line_inc;
+        }
+
+        hal_notify_image_update(dst_image);
+#else
         hal_pixel_t * RESTRICT src_ptr;
         hal_pixel_t * RESTRICT dst_ptr;
         float a, src_r, src_g, src_b, src_a, dst_r, dst_g, dst_b, dst_a;
@@ -135,35 +187,13 @@ DRAW_IMAGE_ALPHA(
         a = (float)alpha / 255.0f;
 
         for(y = 0; y < height; y++) {
-                HAL_ROW_POLL(y);
                 for(x = 0; x < width; x++) {
-                        uint32_t src_alpha;
-
-                        /* Get the source pixel value. */
+                        /* Get the source and destination pixel values. */
                         src_pix = *src_ptr++;
-                        src_alpha = hal_get_pixel_a(src_pix);
-
-                        /*
-                         * Fast paths.  In a visual novel most pixels of a
-                         * layer are either fully transparent (outside the
-                         * character) or fully opaque (the background), and
-                         * the layer alpha is usually 255.  Taking them here
-                         * avoids ~10 FPU operations per pixel.
-                         */
-                        if (src_alpha == 0 || alpha == 0) {
-                                dst_ptr++;
-                                continue;
-                        }
-                        if (src_alpha == 255 && alpha == 255) {
-                                *dst_ptr++ = src_pix | ((hal_pixel_t)255 << 24);
-                                continue;
-                        }
-
-                        /* Get the destination pixel value. */
                         dst_pix = *dst_ptr;
 
                         /* Calc alpha values. */
-                        src_a = a * ((float)src_alpha / 255.0f);
+                        src_a = a * ((float)hal_get_pixel_a(src_pix) / 255.0f);
                         dst_a = 1.0f - src_a;
 
                         /* Multiply the alpha value and the source pixel value. */
@@ -187,6 +217,7 @@ DRAW_IMAGE_ALPHA(
         }
 
         hal_notify_image_update(dst_image);
+#endif
 }
 
 void
@@ -201,6 +232,68 @@ DRAW_IMAGE_GLYPH(
         int src_top,
         int alpha)
 {
+#if defined(HAL_TARGET_PC98) || defined(HAL_TARGET_PCAT)
+        hal_pixel_t * RESTRICT src_ptr;
+        hal_pixel_t * RESTRICT dst_ptr;
+        uint8_t src_r, src_g, src_b, src_a, dst_r, dst_g, dst_b, dst_a;
+        uint32_t src_pix, dst_pix, alpha_i;
+        int src_line_inc, dst_line_inc, x, y, sw, dw;
+
+        if (!check_draw_image(dst_image, &dst_left, &dst_top, src_image, &width, &height, &src_left, &src_top, alpha))
+                return;
+
+        sw = src_image->width;
+        dw = dst_image->width;
+        src_ptr = src_image->pixels + sw * src_top + src_left;
+        dst_ptr = dst_image->pixels + dw * dst_top + dst_left;
+        src_line_inc = sw - width;
+        dst_line_inc = dw - width;
+
+        for(y = 0; y < height; y++) {
+                for(x = 0; x < width; x++) {
+                        /* Get the source and destination pixel values. */
+                        src_pix = *src_ptr++;
+                        dst_pix = *dst_ptr;
+
+                        /* Calc alpha values. */
+                        src_a = (uint8_t)hal_get_pixel_a(src_pix);
+			if (src_a == 0) {
+				dst_ptr++;
+				continue;
+			}
+			if (src_a == 255) {
+				*dst_ptr++ = hal_make_pixel_fast(255,
+								 (uint32_t)hal_get_pixel_c1(src_pix),
+								 (uint32_t)hal_get_pixel_c2(src_pix),
+								 (uint32_t)hal_get_pixel_c3(src_pix));
+				continue;
+			}
+
+                        /* Multiply the alpha value and the source pixel value. */
+                        src_r = alphatable[src_a][(uint8_t)hal_get_pixel_c1(src_pix)];
+                        src_g = alphatable[src_a][(uint8_t)hal_get_pixel_c2(src_pix)];
+                        src_b = alphatable[src_a][(uint8_t)hal_get_pixel_c3(src_pix)];
+
+                        /* Multiply the alpha value and the destination pixel value. */
+                        dst_r = alphatable[dst_a][(uint8_t)hal_get_pixel_c1(dst_pix)];
+                        dst_g = alphatable[dst_a][(uint8_t)hal_get_pixel_c2(dst_pix)];
+                        dst_b = alphatable[dst_a][(uint8_t)hal_get_pixel_c3(dst_pix)];
+                        dst_a = hal_get_pixel_a(dst_pix);
+
+                        alpha_i = src_a > dst_a ? src_a : dst_a;
+
+                        /* Store to the destination. */
+                        *dst_ptr++ = hal_make_pixel_fast(alpha_i,
+                                                         (uint32_t)(src_r + dst_r),
+                                                         (uint32_t)(src_g + dst_g),
+                                                         (uint32_t)(src_b + dst_b));
+                }
+                src_ptr += src_line_inc;
+                dst_ptr += dst_line_inc;
+        }
+
+        hal_notify_image_update(dst_image);
+#else
         hal_pixel_t * RESTRICT src_ptr;
         hal_pixel_t * RESTRICT dst_ptr;
         float a, src_r, src_g, src_b, src_a, dst_r, dst_g, dst_b, dst_a;
@@ -219,7 +312,6 @@ DRAW_IMAGE_GLYPH(
         a = (float)alpha / 255.0f;
 
         for(y = 0; y < height; y++) {
-                HAL_ROW_POLL(y);
                 for(x = 0; x < width; x++) {
                         /* Get the source and destination pixel values. */
                         src_pix = *src_ptr++;
@@ -253,6 +345,7 @@ DRAW_IMAGE_GLYPH(
         }
 
         hal_notify_image_update(dst_image);
+#endif
 }
 
 void
@@ -285,7 +378,6 @@ DRAW_IMAGE_EMOJI(
         a = (float)alpha / 255.0f;
 
         for(y = 0; y < height; y++) {
-                HAL_ROW_POLL(y);
                 for(x = 0; x < width; x++) {
                         src_pix = *src_ptr++;
                         dst_pix = *dst_ptr;
@@ -348,7 +440,6 @@ DRAW_IMAGE_ADD(
         a = (float)alpha / 255.0f;
 
         for(y = 0; y < height; y++) {
-                HAL_ROW_POLL(y);
                 for(x = 0; x < width; x++) {
                         /* Get the source and destination pixel values. */
                         src_pix = *src_ptr++;
@@ -420,7 +511,6 @@ DRAW_IMAGE_SUB(
         a = (float)alpha / 255.0f;
 
         for(y = 0; y < height; y++) {
-                HAL_ROW_POLL(y);
                 for(x = 0; x < width; x++) {
                         /* Get the source and destination pixel values. */
                         src_pix = *src_ptr++;
@@ -489,7 +579,6 @@ DRAW_IMAGE_DIM(
         a = (float)alpha / 255.0f;
 
         for(y = 0; y < height; y++) {
-                HAL_ROW_POLL(y);
                 for(x = 0; x < width; x++) {
                         /* Get the source and destination pixel values. */
                         src_pix = *src_ptr++;
