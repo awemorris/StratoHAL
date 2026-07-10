@@ -945,7 +945,7 @@ cleanup_sound(void)
 {
 	if (sound_driver == SOUND_SB16)
 		sb16_cleanup_sound();
-	else if (sound_driver == SOUND_SB16)
+	else if (sound_driver == SOUND_WSS)
 		wss_cleanup_sound();
 }
 
