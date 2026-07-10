@@ -32,6 +32,14 @@
 #include <strato/strato.h>
 #include <assert.h>
 
+/* Let the sound buffer be refilled while we composite the screen in software. */
+#if defined(HAL_TARGET_PC98)
+void hal_poll_sound(void);
+#define HAL_ROW_POLL(y)   do { if (((y) & 31) == 0) hal_poll_sound(); } while (0)
+#else
+#define HAL_ROW_POLL(y)   do { } while (0)
+#endif
+
 /*
  * Do not use hal_get_pixel_r/g/b() and hal_make_pixel() here.
  *
@@ -87,6 +95,7 @@ DRAW_IMAGE_COPY(
         dst_ptr = dst_image->pixels + dw * dst_top + dst_left;
 
         for(y = 0; y < height; y++) {
+                HAL_ROW_POLL(y);
                 for(x = 0; x < width; x++)
                         *(dst_ptr + x) = *(src_ptr + x);
                 src_ptr += sw;
@@ -126,6 +135,7 @@ DRAW_IMAGE_ALPHA(
         a = (float)alpha / 255.0f;
 
         for(y = 0; y < height; y++) {
+                HAL_ROW_POLL(y);
                 for(x = 0; x < width; x++) {
                         /* Get the source and destination pixel values. */
                         src_pix = *src_ptr++;
@@ -188,6 +198,7 @@ DRAW_IMAGE_GLYPH(
         a = (float)alpha / 255.0f;
 
         for(y = 0; y < height; y++) {
+                HAL_ROW_POLL(y);
                 for(x = 0; x < width; x++) {
                         /* Get the source and destination pixel values. */
                         src_pix = *src_ptr++;
@@ -253,6 +264,7 @@ DRAW_IMAGE_EMOJI(
         a = (float)alpha / 255.0f;
 
         for(y = 0; y < height; y++) {
+                HAL_ROW_POLL(y);
                 for(x = 0; x < width; x++) {
                         src_pix = *src_ptr++;
                         dst_pix = *dst_ptr;
@@ -315,6 +327,7 @@ DRAW_IMAGE_ADD(
         a = (float)alpha / 255.0f;
 
         for(y = 0; y < height; y++) {
+                HAL_ROW_POLL(y);
                 for(x = 0; x < width; x++) {
                         /* Get the source and destination pixel values. */
                         src_pix = *src_ptr++;
@@ -386,6 +399,7 @@ DRAW_IMAGE_SUB(
         a = (float)alpha / 255.0f;
 
         for(y = 0; y < height; y++) {
+                HAL_ROW_POLL(y);
                 for(x = 0; x < width; x++) {
                         /* Get the source and destination pixel values. */
                         src_pix = *src_ptr++;
@@ -454,6 +468,7 @@ DRAW_IMAGE_DIM(
         a = (float)alpha / 255.0f;
 
         for(y = 0; y < height; y++) {
+                HAL_ROW_POLL(y);
                 for(x = 0; x < width; x++) {
                         /* Get the source and destination pixel values. */
                         src_pix = *src_ptr++;
