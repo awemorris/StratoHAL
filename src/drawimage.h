@@ -137,12 +137,33 @@ DRAW_IMAGE_ALPHA(
         for(y = 0; y < height; y++) {
                 HAL_ROW_POLL(y);
                 for(x = 0; x < width; x++) {
-                        /* Get the source and destination pixel values. */
+                        uint32_t src_alpha;
+
+                        /* Get the source pixel value. */
                         src_pix = *src_ptr++;
+                        src_alpha = hal_get_pixel_a(src_pix);
+
+                        /*
+                         * Fast paths.  In a visual novel most pixels of a
+                         * layer are either fully transparent (outside the
+                         * character) or fully opaque (the background), and
+                         * the layer alpha is usually 255.  Taking them here
+                         * avoids ~10 FPU operations per pixel.
+                         */
+                        if (src_alpha == 0 || alpha == 0) {
+                                dst_ptr++;
+                                continue;
+                        }
+                        if (src_alpha == 255 && alpha == 255) {
+                                *dst_ptr++ = src_pix | ((hal_pixel_t)255 << 24);
+                                continue;
+                        }
+
+                        /* Get the destination pixel value. */
                         dst_pix = *dst_ptr;
 
                         /* Calc alpha values. */
-                        src_a = a * ((float)hal_get_pixel_a(src_pix) / 255.0f);
+                        src_a = a * ((float)src_alpha / 255.0f);
                         dst_a = 1.0f - src_a;
 
                         /* Multiply the alpha value and the source pixel value. */
