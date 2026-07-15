@@ -64,8 +64,6 @@ void hal_poll_sound(void);
 #define SCREEN_HEIGHT	400
 #define LINE_BYTES	(640 / 8)
 
-static uint8_t *fb;
-
 static int ofs_x;
 static int ofs_y;
 
@@ -76,8 +74,8 @@ extern struct hal_image *back_image;
 bool
 gdc_init_disp(void)
 {
-	volatile uint16_t *text, *attr;
 	union REGS r;
+	volatile uint16_t *text;
 	int i;
 
 	if (game_width > SCREEN_WIDTH || game_height > SCREEN_HEIGHT)
@@ -96,11 +94,8 @@ gdc_init_disp(void)
 
 	/* Hide Text VRAM. */
 	text = (volatile uint16_t *)0xa0000;
-	attr = (volatile uint16_t *)0xa0000;
-	for (i = 0; i < 80 * 25; i++) {
+	for (i = 0; i < 80 * 25; i++)
 		text[i] = 0x0000;
-		attr[i] = 0x0000;
-	}
 
 	/*
 	 * Start displaying G-VRAM.
@@ -112,6 +107,9 @@ gdc_init_disp(void)
 	ofs_x = (SCREEN_WIDTH - game_width) / 2;
 	ofs_y = (SCREEN_HEIGHT - game_height) / 2;
 
+	/* Text OFF*/
+        outp(0x62, 0x0c);
+
 	return true;
 }
 
@@ -119,6 +117,9 @@ void
 gdc_cleanup_disp(void)
 {
 	union REGS r;
+	volatile uint16_t *text;
+	volatile unsigned char *gvram;
+	int i;
 
 	/*
 	 * Stop displaying G-VRAM.
@@ -126,6 +127,28 @@ gdc_cleanup_disp(void)
 	 */
 	r.w.ax = 0x4100;
 	int386(0x18, &r, &r);
+
+	/* Hide Text VRAM. */
+	text = (volatile uint16_t *)0xa0000;
+	for (i = 0; i < 80 * 25; i++)
+		text[i] = 0x0000;
+
+	/* Hide G-VRAM. */
+	gvram = (volatile char *)0xa8000;
+	for (i = 0; i < 640 * 400 / 8; i++)
+		gvram[i] = 0;
+	gvram = (volatile char *)0xb0000;
+	for (i = 0; i < 640 * 400 / 8; i++)
+		gvram[i] = 0;
+	gvram = (volatile char *)0xb8000;
+	for (i = 0; i < 640 * 400 / 8; i++)
+		gvram[i] = 0;
+	gvram = (volatile char *)0xe0000;
+	for (i = 0; i < 640 * 400 / 8; i++)
+		gvram[i] = 0;
+
+        /* Text ON. */
+        outp(0x62, 0x0d);
 }
 
 /*
